@@ -8,7 +8,7 @@ End-to-end machine learning pipeline predicting COVID-19 patient mortality using
 
 ## Live App
 
-[Deployed Streamlit App — link to be added after deployment]
+https://msis522-hw1-covid19-mortality-alexsalcedo.streamlit.app/
 
 ## Project Structure
 
