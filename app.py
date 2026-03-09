@@ -41,14 +41,8 @@ def load_models():
     dt = joblib.load("models/decision_tree.pkl")
     rf = joblib.load("models/random_forest.pkl")
     lgbm = joblib.load("models/lightgbm_model.pkl")
-    nn = None
-    try:
-        from tensorflow import keras
-        nn = keras.models.load_model("models/neural_network.keras")
-    except Exception:
-        pass
     scaler = joblib.load("models/scaler.pkl")
-    return dt, rf, lgbm, nn, scaler
+    return dt, rf, lgbm, scaler
 
 
 @st.cache_resource
@@ -59,7 +53,7 @@ def train_logistic(_train_x_scaled, _train_y):
 
 
 df = load_data()
-dt_model, rf_model, lgbm_model, nn_model, scaler = load_models()
+dt_model, rf_model, lgbm_model, scaler = load_models()
 
 X = df.drop(columns="DEATH")
 y = df["DEATH"]
@@ -251,31 +245,31 @@ suggests each feature contributes relatively independent information to the mode
 with tab3:
     st.header("Model Performance Comparison")
 
-    # Compute predictions for all models
+    # Compute predictions for sklearn/lgbm models
     model_dict = {
         "Logistic Regression": (lr_model, test_x_scaled),
         "Decision Tree": (dt_model, test_x),
         "Random Forest": (rf_model, test_x),
         "LightGBM": (lgbm_model, test_x),
     }
-    if nn_model is not None:
-        model_dict["Neural Network"] = (nn_model, test_x_scaled)
 
     all_metrics = {}
     roc_data = {}
     cm_data = {}
 
     for name, (mdl, x_input) in model_dict.items():
-        if name == "Neural Network":
-            proba = mdl.predict(x_input).flatten()
-            pred = (proba >= 0.5).astype(int)
-        else:
-            pred = mdl.predict(x_input)
-            proba = mdl.predict_proba(x_input)[:, 1]
+        pred = mdl.predict(x_input)
+        proba = mdl.predict_proba(x_input)[:, 1]
         all_metrics[name] = get_metrics(test_y, pred, proba)
         fpr, tpr, _ = roc_curve(test_y, proba)
         roc_data[name] = (fpr, tpr, all_metrics[name]["AUC-ROC"])
         cm_data[name] = confusion_matrix(test_y, pred)
+
+    # NN metrics from notebook (TensorFlow too large for Streamlit Cloud)
+    all_metrics["Neural Network"] = {
+        "Accuracy": 0.8977, "Precision": 0.8665, "Recall": 0.9460,
+        "F1 Score": 0.9045, "AUC-ROC": 0.9448,
+    }
 
     # Metrics table
     st.subheader("Test Set Metrics")
@@ -416,9 +410,6 @@ risk. These three features together dominate the model's decision-making.
     st.subheader("Interactive Prediction")
 
     available_models = ["Decision Tree", "Random Forest", "LightGBM"]
-    if nn_model is not None:
-        available_models.append("Neural Network")
-
     selected_model = st.selectbox("Select a model for prediction:", available_models)
 
     col1, col2, col3 = st.columns(3)
@@ -452,11 +443,8 @@ risk. These three features together dominate the model's decision-making.
         prob = rf_model.predict_proba(input_df)[0][1]
     elif selected_model == "LightGBM":
         prob = lgbm_model.predict_proba(input_df)[0][1]
-    elif selected_model == "Neural Network":
-        prob = float(nn_model.predict(input_scaled).flatten()[0])
 
     prediction = "Died" if prob >= 0.5 else "Survived"
-    color = "red" if prediction == "Died" else "green"
 
     st.divider()
 
